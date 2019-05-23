@@ -1,4 +1,4 @@
-package org.folio.finc.select;
+package org.folio.finc.select.verticles;
 
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.CompositeFuture;
@@ -14,15 +14,15 @@ import org.folio.rest.utils.Constants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class SelectMetadataSourceVerticle extends AbstractVerticle {
+public abstract class AbstractSelectMetadataSourceVerticle extends AbstractVerticle {
 
-  private static final Logger logger = LoggerFactory.getLogger(SelectMetadataSourceVerticle.class);
+  private static final Logger logger = LoggerFactory.getLogger(AbstractSelectMetadataSourceVerticle.class);
 
   private static final String METADATA_COLLECTIONS_TABLE = "metadata_collections";
   private static final String ISILS_TABLE = "isils";
   private static final String ISIL_MDC_VIEW = "isil_mdc_view";
 
-  public SelectMetadataSourceVerticle(Vertx vertx, Context ctx) {
+  public AbstractSelectMetadataSourceVerticle(Vertx vertx, Context ctx) {
     super();
     super.init(vertx, ctx);
   }
@@ -31,8 +31,7 @@ public class SelectMetadataSourceVerticle extends AbstractVerticle {
   public void start() {
     String metadataSourceId = config().getString("metadataSourceId");
     String tenantId = config().getString("tenantId");
-
-    logger.info("Deployed SelectMetadataSourceVerticle");
+    logger.info("Deployed AbstractSelectMetadataSourceVerticle");
     if (!config().getBoolean("testing", false)) {
       selectAllCollections(metadataSourceId, tenantId);
     } else {
@@ -82,12 +81,18 @@ public class SelectMetadataSourceVerticle extends AbstractVerticle {
     return fetchIsil(tenantId)
         .compose(
             isil -> {
-              List<FincConfigMetadataCollection> selected =
-                  filterAndSelectCollections(metadataCollections, isil);
+              List<FincConfigMetadataCollection> selected = select(metadataCollections, isil);
+              /*if (doSelect) {
+                selected = filterAndSelectCollections(metadataCollections, isil);
+              } else {
+                selected = filterAndUnselectCollections(metadataCollections, isil);
+              }*/
               List<Future> futures = saveCollections(selected);
               return CompositeFuture.join(futures);
             });
   }
+
+  abstract List<FincConfigMetadataCollection> select(List<FincConfigMetadataCollection> metadataCollections, String isil);
 
   private Future<String> fetchIsil(String tenantId) {
     Future<String> future = Future.future();
@@ -124,6 +129,13 @@ public class SelectMetadataSourceVerticle extends AbstractVerticle {
               metadataCollection.getSelectedBy().add(isil);
               return metadataCollection;
             })
+        .collect(Collectors.toList());
+  }
+
+  private List<FincConfigMetadataCollection> filterAndUnselectCollections(
+      List<FincConfigMetadataCollection> collections, String isil) {
+    return collections.stream()
+        .filter(metadataCollection -> metadataCollection.getSelectedBy().remove(isil) == true)
         .collect(Collectors.toList());
   }
 
