@@ -3,6 +3,7 @@ package org.folio.finc.select;
 import com.jayway.restassured.RestAssured;
 import com.jayway.restassured.parsing.Parser;
 import io.vertx.core.DeploymentOptions;
+import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
@@ -60,8 +61,7 @@ public class SelectMetadataSourceVerticleTest {
       return;
     }
 
-    Async async1 = context.async(1);
-    Async async2 = context.async(2);
+    Async async = context.async(2);
     int port = NetworkUtils.nextFreePort();
 
     RestAssured.reset();
@@ -81,12 +81,15 @@ public class SelectMetadataSourceVerticleTest {
         options,
         res -> {
           try {
-            tenantClientFinc.postTenant(null, postTenantRes -> async1.complete());
+            tenantClientFinc.postTenant(null, postTenantRes -> async.countDown());
             tenantClientUBL.postTenant(
                 null,
                 postTenantRes -> {
-                  writeDataToDB(context);
-                  async2.complete();
+                  Future<Void> future = writeDataToDB(context);
+                  future.setHandler(
+                      ar -> {
+                        if (ar.succeeded()) async.countDown();
+                      });
                 });
           } catch (Exception e) {
             context.fail(e);
@@ -98,7 +101,7 @@ public class SelectMetadataSourceVerticleTest {
   @AfterClass
   public static void teardown(TestContext context) {
     RestAssured.reset();
-    Async async = context.async(3);
+    Async async = context.async();
     vertx.close(
         context.asyncAssertSuccess(
             res -> {
@@ -144,7 +147,8 @@ public class SelectMetadataSourceVerticleTest {
     }
   }
 
-  private static void writeDataToDB(TestContext context) {
+  private static Future<Void> writeDataToDB(TestContext context) {
+    Async async = context.async(7);
     PostgresClient.getInstance(vertx, Constants.MODULE_TENANT)
         .save(
             "isils",
@@ -153,6 +157,7 @@ public class SelectMetadataSourceVerticleTest {
             asyncResult -> {
               if (asyncResult.succeeded()) {
                 logger.info("Loaded isil");
+                async.countDown();
               } else {
                 context.fail("Could not load isil");
               }
@@ -166,6 +171,7 @@ public class SelectMetadataSourceVerticleTest {
             asyncResult -> {
               if (asyncResult.succeeded()) {
                 logger.info("Loaded isil");
+                async.countDown();
               } else {
                 context.fail("Could not load isil");
               }
@@ -179,6 +185,7 @@ public class SelectMetadataSourceVerticleTest {
             asyncResult -> {
               if (asyncResult.succeeded()) {
                 logger.info("Loaded metadata source 1");
+                async.countDown();
               } else {
                 context.fail("Could not load metadata source 1");
               }
@@ -191,6 +198,7 @@ public class SelectMetadataSourceVerticleTest {
             asyncResult -> {
               if (asyncResult.succeeded()) {
                 logger.info("Loaded metadata source 2");
+                async.countDown();
               } else {
                 context.fail("Could not load metadata source 2");
               }
@@ -203,6 +211,7 @@ public class SelectMetadataSourceVerticleTest {
             asyncResult -> {
               if (asyncResult.succeeded()) {
                 logger.info("Loaded metadata collection 1");
+                async.countDown();
               } else {
                 context.fail("Could not load metadata collection 1");
               }
@@ -215,6 +224,7 @@ public class SelectMetadataSourceVerticleTest {
             asyncResult -> {
               if (asyncResult.succeeded()) {
                 logger.info("Loaded metadata collection 2");
+                async.countDown();
               } else {
                 context.fail("Could not load metadata collection 2");
               }
@@ -227,10 +237,13 @@ public class SelectMetadataSourceVerticleTest {
             asyncResult -> {
               if (asyncResult.succeeded()) {
                 logger.info("Loaded metadata collection 3");
+                async.countDown();
               } else {
                 context.fail("Could not load metadata collection 3");
               }
             });
+    async.await();
+    return Future.succeededFuture();
   }
 
   @Before
@@ -252,7 +265,7 @@ public class SelectMetadataSourceVerticleTest {
 
   @Test
   public void testSuccessfulSelect(TestContext context) {
-//    Async async = context.async(5);
+    Async async = context.async();
     cut.selectAllCollections(metadataSource2.getId(), TENANT_UBL)
         .setHandler(
             aVoid -> {
@@ -267,26 +280,23 @@ public class SelectMetadataSourceVerticleTest {
                             if (collectionAsyncResult.succeeded()) {
                               context.assertTrue(
                                   collectionAsyncResult.result().getSelectedBy().contains("DE-15"));
-//                              async.complete();
+                              async.complete();
                             } else {
                               context.fail(collectionAsyncResult.cause().toString());
-//                              async.complete();
                             }
                           });
                 } catch (Exception e) {
                   context.fail(e);
-//                  async.complete();
                 }
               } else {
                 context.fail();
-//                async.complete();
               }
             });
   }
 
   @Test
   public void testNoSelect(TestContext context) {
-    Async async = context.async(6);
+    Async async = context.async();
     cut.selectAllCollections(metadataSource2.getId(), TENANT_UBL)
         .setHandler(
             aVoid -> {
@@ -304,16 +314,13 @@ public class SelectMetadataSourceVerticleTest {
                               async.complete();
                             } else {
                               context.fail(collectionAsyncResult.cause().toString());
-                              async.complete();
                             }
                           });
                 } catch (Exception e) {
                   context.fail(e);
-                  async.complete();
                 }
               } else {
                 context.fail();
-                async.complete();
               }
             });
   }
