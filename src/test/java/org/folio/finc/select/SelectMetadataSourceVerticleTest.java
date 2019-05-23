@@ -3,7 +3,6 @@ package org.folio.finc.select;
 import com.jayway.restassured.RestAssured;
 import com.jayway.restassured.parsing.Parser;
 import io.vertx.core.DeploymentOptions;
-import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
@@ -24,6 +23,7 @@ import org.folio.rest.persist.PostgresClient;
 import org.folio.rest.tools.utils.NetworkUtils;
 import org.folio.rest.utils.Constants;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
@@ -35,12 +35,8 @@ public class SelectMetadataSourceVerticleTest {
   private static final Logger logger =
       LoggerFactory.getLogger(SelectMetadataSourceVerticleTest.class);
 
-  private static final String TENANT = "diku";
   private static final String TENANT_UBL = "ubl";
-  private static final String APPLICATION_JSON = "application/json";
-  private static final String BASE_URI = "/finc-config/metadata-sources";
   private static Vertx vertx;
-  private static SelectMetadataSourceVerticle selectMetadataSourceVerticle;
   private static FincConfigMetadataSource metadataSource1;
   private static FincConfigMetadataSource metadataSource2;
   private static FincConfigMetadataCollection metadataCollection1;
@@ -48,10 +44,70 @@ public class SelectMetadataSourceVerticleTest {
   private static FincConfigMetadataCollection metadataCollection3;
   private static Isil isil1;
   private static Isil isil2;
-  @Rule public Timeout timeout = Timeout.seconds(10);
+  private static SelectMetadataSourceVerticle cut;
+  @Rule public Timeout timeout = Timeout.seconds(1000);
 
   @BeforeClass
   public static void setUp(TestContext context) {
+    readData(context);
+    vertx = Vertx.vertx();
+    try {
+      PostgresClient.setIsEmbedded(true);
+      PostgresClient instance = PostgresClient.getInstance(vertx);
+      instance.startEmbeddedPostgres();
+    } catch (Exception e) {
+      context.fail(e);
+      return;
+    }
+
+    Async async1 = context.async(1);
+    Async async2 = context.async(2);
+    int port = NetworkUtils.nextFreePort();
+
+    RestAssured.reset();
+    RestAssured.baseURI = "http://localhost";
+    RestAssured.port = port;
+    RestAssured.defaultParser = Parser.JSON;
+
+    String url = "http://localhost:" + port;
+    TenantClient tenantClientFinc =
+        new TenantClient(url, Constants.MODULE_TENANT, Constants.MODULE_TENANT);
+    TenantClient tenantClientUBL = new TenantClient(url, TENANT_UBL, TENANT_UBL);
+    DeploymentOptions options =
+        new DeploymentOptions().setConfig(new JsonObject().put("http.port", port)).setWorker(true);
+
+    vertx.deployVerticle(
+        RestVerticle.class.getName(),
+        options,
+        res -> {
+          try {
+            tenantClientFinc.postTenant(null, postTenantRes -> async1.complete());
+            tenantClientUBL.postTenant(
+                null,
+                postTenantRes -> {
+                  writeDataToDB(context);
+                  async2.complete();
+                });
+          } catch (Exception e) {
+            context.fail(e);
+          }
+        });
+    cut = new SelectMetadataSourceVerticle(vertx, vertx.getOrCreateContext());
+  }
+
+  @AfterClass
+  public static void teardown(TestContext context) {
+    RestAssured.reset();
+    Async async = context.async(3);
+    vertx.close(
+        context.asyncAssertSuccess(
+            res -> {
+              PostgresClient.stopEmbeddedPostgres();
+              async.complete();
+            }));
+  }
+
+  private static void readData(TestContext context) {
     try {
       String metadataSourceStr1 =
           new String(
@@ -86,98 +142,13 @@ public class SelectMetadataSourceVerticleTest {
     } catch (Exception e) {
       context.fail(e);
     }
-
-    vertx = Vertx.vertx();
-    try {
-      PostgresClient.setIsEmbedded(true);
-      PostgresClient instance = PostgresClient.getInstance(vertx);
-      instance.startEmbeddedPostgres();
-    } catch (Exception e) {
-      context.fail(e);
-      return;
-    }
-
-    Async async1 = context.async(1);
-    Async async2 = context.async(2);
-    int port = NetworkUtils.nextFreePort();
-
-    RestAssured.reset();
-    RestAssured.baseURI = "http://localhost";
-    RestAssured.port = port;
-    RestAssured.defaultParser = Parser.JSON;
-
-    String url = "http://localhost:" + port;
-    TenantClient tenantClientFinc =
-        new TenantClient(url, Constants.MODULE_TENANT, Constants.MODULE_TENANT);
-    TenantClient tenantClientUBL = new TenantClient(url, TENANT_UBL, TENANT_UBL);
-    DeploymentOptions options =
-        new DeploymentOptions().setConfig(new JsonObject().put("http.port", port)).setWorker(true);
-
-    vertx.deployVerticle(
-        RestVerticle.class.getName(),
-        options,
-        res -> {
-          try {
-            tenantClientFinc.postTenant(null, postTenantRes -> async1.complete());
-            tenantClientUBL.postTenant(null, postTenantRes -> async2.complete());
-          } catch (Exception e) {
-            context.fail(e);
-          }
-        });
-    selectMetadataSourceVerticle =
-        new SelectMetadataSourceVerticle(vertx, vertx.getOrCreateContext());
   }
 
-  @AfterClass
-  public static void teardown(TestContext context) {
-    RestAssured.reset();
-    Async async = context.async();
-    vertx.close(
-        context.asyncAssertSuccess(
-            res -> {
-              PostgresClient.stopEmbeddedPostgres();
-              async.complete();
-            }));
-  }
-
-  @Test
-  public void test(TestContext context) throws Exception {
-    loadData(context);
-
-    Future<String> deploy = Future.future();
-    JsonObject cfg = vertx.getOrCreateContext().config();
-    cfg.put("tenantId", "ubl");
-    cfg.put("metadataSourceId", "f6f03fb4-3368-4bc0-bc02-3bf6e19604a5");
-    vertx.deployVerticle(
-        selectMetadataSourceVerticle,
-        new DeploymentOptions().setConfig(cfg), // .setWorker(true),
-        deploy.completer());
-    deploy.setHandler(
-        asyncResult -> {
-          if (asyncResult.succeeded()) {
-            try {
-              PostgresClient.getInstance(vertx, Constants.MODULE_TENANT)
-                  .getById(
-                      "metadata_collections",
-                      metadataCollection3.getId(),
-                      FincConfigMetadataCollection.class,
-                      collectionAsyncResult -> {
-                        FincConfigMetadataCollection result = collectionAsyncResult.result();
-                        context.assertTrue(result.getSelectedBy().contains("DE-15"));
-                      });
-            } catch (Exception e) {
-              System.out.println("FAIL");
-            }
-          } else {
-            System.out.println("FAIL");
-          }
-        });
-  }
-
-  private void loadData(TestContext context) {
+  private static void writeDataToDB(TestContext context) {
     PostgresClient.getInstance(vertx, Constants.MODULE_TENANT)
         .save(
             "isils",
+            isil1.getId(),
             isil1,
             asyncResult -> {
               if (asyncResult.succeeded()) {
@@ -190,6 +161,7 @@ public class SelectMetadataSourceVerticleTest {
     PostgresClient.getInstance(vertx, Constants.MODULE_TENANT)
         .save(
             "isils",
+            isil2.getId(),
             isil2,
             asyncResult -> {
               if (asyncResult.succeeded()) {
@@ -202,56 +174,146 @@ public class SelectMetadataSourceVerticleTest {
     PostgresClient.getInstance(vertx, Constants.MODULE_TENANT)
         .save(
             "metadata_sources",
+            metadataSource1.getId(),
             metadataSource1,
             asyncResult -> {
               if (asyncResult.succeeded()) {
-                logger.info("Loaded metadata source");
+                logger.info("Loaded metadata source 1");
               } else {
-                context.fail("Could not load metadata source");
+                context.fail("Could not load metadata source 1");
               }
             });
     PostgresClient.getInstance(vertx, Constants.MODULE_TENANT)
         .save(
             "metadata_sources",
-            metadataSource1,
+            metadataSource2.getId(),
+            metadataSource2,
             asyncResult -> {
               if (asyncResult.succeeded()) {
-                logger.info("Loaded metadata source");
+                logger.info("Loaded metadata source 2");
               } else {
-                context.fail("Could not load metadata source");
+                context.fail("Could not load metadata source 2");
               }
             });
     PostgresClient.getInstance(vertx, Constants.MODULE_TENANT)
         .save(
             "metadata_collections",
+            metadataCollection1.getId(),
             metadataCollection1,
             asyncResult -> {
               if (asyncResult.succeeded()) {
-                logger.info("Loaded metadata collection");
+                logger.info("Loaded metadata collection 1");
               } else {
-                context.fail("Could not load metadata colletion");
+                context.fail("Could not load metadata collection 1");
               }
             });
     PostgresClient.getInstance(vertx, Constants.MODULE_TENANT)
         .save(
             "metadata_collections",
+            metadataCollection2.getId(),
             metadataCollection2,
             asyncResult -> {
               if (asyncResult.succeeded()) {
-                logger.info("Loaded metadata collection");
+                logger.info("Loaded metadata collection 2");
               } else {
-                context.fail("Could not load metadata colletion");
+                context.fail("Could not load metadata collection 2");
               }
             });
     PostgresClient.getInstance(vertx, Constants.MODULE_TENANT)
         .save(
             "metadata_collections",
+            metadataCollection3.getId(),
             metadataCollection3,
             asyncResult -> {
               if (asyncResult.succeeded()) {
-                logger.info("Loaded metadata collection");
+                logger.info("Loaded metadata collection 3");
               } else {
-                context.fail("Could not load metadata colletion");
+                context.fail("Could not load metadata collection 3");
+              }
+            });
+  }
+
+  @Before
+  public void before(TestContext context) {
+    Async async = context.async();
+    vertx = Vertx.vertx();
+    JsonObject cfg2 = vertx.getOrCreateContext().config();
+    cfg2.put("tenantId", TENANT_UBL);
+    cfg2.put("metadataSourceId", metadataSource2.getId());
+    cfg2.put("testing", true);
+    vertx.deployVerticle(
+        cut,
+        new DeploymentOptions().setConfig(cfg2).setWorker(true),
+        context.asyncAssertSuccess(
+            h -> {
+              async.complete();
+            }));
+  }
+
+  @Test
+  public void testSuccessfulSelect(TestContext context) {
+//    Async async = context.async(5);
+    cut.selectAllCollections(metadataSource2.getId(), TENANT_UBL)
+        .setHandler(
+            aVoid -> {
+              if (aVoid.succeeded()) {
+                try {
+                  PostgresClient.getInstance(vertx, Constants.MODULE_TENANT)
+                      .getById(
+                          "metadata_collections",
+                          metadataCollection3.getId(),
+                          FincConfigMetadataCollection.class,
+                          collectionAsyncResult -> {
+                            if (collectionAsyncResult.succeeded()) {
+                              context.assertTrue(
+                                  collectionAsyncResult.result().getSelectedBy().contains("DE-15"));
+//                              async.complete();
+                            } else {
+                              context.fail(collectionAsyncResult.cause().toString());
+//                              async.complete();
+                            }
+                          });
+                } catch (Exception e) {
+                  context.fail(e);
+//                  async.complete();
+                }
+              } else {
+                context.fail();
+//                async.complete();
+              }
+            });
+  }
+
+  @Test
+  public void testNoSelect(TestContext context) {
+    Async async = context.async(6);
+    cut.selectAllCollections(metadataSource2.getId(), TENANT_UBL)
+        .setHandler(
+            aVoid -> {
+              if (aVoid.succeeded()) {
+                try {
+                  PostgresClient.getInstance(vertx, Constants.MODULE_TENANT)
+                      .getById(
+                          "metadata_collections",
+                          metadataCollection2.getId(),
+                          FincConfigMetadataCollection.class,
+                          collectionAsyncResult -> {
+                            if (collectionAsyncResult.succeeded()) {
+                              context.assertFalse(
+                                  collectionAsyncResult.result().getSelectedBy().contains("DE-15"));
+                              async.complete();
+                            } else {
+                              context.fail(collectionAsyncResult.cause().toString());
+                              async.complete();
+                            }
+                          });
+                } catch (Exception e) {
+                  context.fail(e);
+                  async.complete();
+                }
+              } else {
+                context.fail();
+                async.complete();
               }
             });
   }
