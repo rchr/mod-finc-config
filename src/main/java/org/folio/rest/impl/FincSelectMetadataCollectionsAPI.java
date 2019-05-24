@@ -9,6 +9,7 @@ import io.vertx.core.Vertx;
 import java.util.Map;
 import javax.ws.rs.core.Response;
 import org.folio.finc.select.MetadataCollectionsHelper;
+import org.folio.rest.annotations.Validate;
 import org.folio.rest.jaxrs.model.FincSelectMetadataCollection;
 import org.folio.rest.jaxrs.model.FincSelectMetadataCollectionsGetOrder;
 import org.folio.rest.jaxrs.model.Select;
@@ -23,6 +24,7 @@ public class FincSelectMetadataCollectionsAPI implements FincSelectMetadataColle
   }
 
   @Override
+  @Validate
   public void getFincSelectMetadataCollections(
       String query,
       String orderBy,
@@ -38,6 +40,7 @@ public class FincSelectMetadataCollectionsAPI implements FincSelectMetadataColle
   }
 
   @Override
+  @Validate
   public void postFincSelectMetadataCollections(
       String lang,
       FincSelectMetadataCollection entity,
@@ -55,6 +58,7 @@ public class FincSelectMetadataCollectionsAPI implements FincSelectMetadataColle
   }
 
   @Override
+  @Validate
   public void getFincSelectMetadataCollectionsById(
       String id,
       String lang,
@@ -66,6 +70,7 @@ public class FincSelectMetadataCollectionsAPI implements FincSelectMetadataColle
   }
 
   @Override
+  @Validate
   public void deleteFincSelectMetadataCollectionsById(
       String id,
       String lang,
@@ -82,6 +87,7 @@ public class FincSelectMetadataCollectionsAPI implements FincSelectMetadataColle
   }
 
   @Override
+  @Validate
   public void putFincSelectMetadataCollectionsById(
       String id,
       String lang,
@@ -99,6 +105,7 @@ public class FincSelectMetadataCollectionsAPI implements FincSelectMetadataColle
   }
 
   @Override
+  @Validate
   public void putFincSelectMetadataCollectionsSelectById(
       String id,
       String lang,
@@ -111,6 +118,7 @@ public class FincSelectMetadataCollectionsAPI implements FincSelectMetadataColle
   }
 
   @Override
+  @Validate
   public void getFincSelectMetadataCollectionsSelectById(
       String id,
       String lang,
@@ -127,6 +135,7 @@ public class FincSelectMetadataCollectionsAPI implements FincSelectMetadataColle
   }
 
   @Override
+  @Validate
   public void deleteFincSelectMetadataCollectionsSelectById(
       String id,
       String lang,
