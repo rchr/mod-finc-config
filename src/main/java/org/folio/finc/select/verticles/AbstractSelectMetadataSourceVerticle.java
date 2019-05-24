@@ -39,11 +39,6 @@ public abstract class AbstractSelectMetadataSourceVerticle extends AbstractVerti
     }
   }
 
-  @Override
-  public void stop() throws Exception {
-    super.stop();
-  }
-
   public Future<CompositeFuture> selectAllCollections(String mdSourceId, String tenantId) {
     return fetchPermittedCollections(mdSourceId, tenantId)
         .compose(metadataCollections -> doSelectAndSave(metadataCollections, tenantId));
@@ -82,11 +77,6 @@ public abstract class AbstractSelectMetadataSourceVerticle extends AbstractVerti
         .compose(
             isil -> {
               List<FincConfigMetadataCollection> selected = select(metadataCollections, isil);
-              /*if (doSelect) {
-                selected = filterAndSelectCollections(metadataCollections, isil);
-              } else {
-                selected = filterAndUnselectCollections(metadataCollections, isil);
-              }*/
               List<Future> futures = saveCollections(selected);
               return CompositeFuture.join(futures);
             });
@@ -120,28 +110,9 @@ public abstract class AbstractSelectMetadataSourceVerticle extends AbstractVerti
     return future;
   }
 
-  private List<FincConfigMetadataCollection> filterAndSelectCollections(
-      List<FincConfigMetadataCollection> collections, String isil) {
-    return collections.stream()
-        .filter(metadataCollection -> !metadataCollection.getSelectedBy().contains(isil))
-        .map(
-            metadataCollection -> {
-              metadataCollection.getSelectedBy().add(isil);
-              return metadataCollection;
-            })
-        .collect(Collectors.toList());
-  }
-
-  private List<FincConfigMetadataCollection> filterAndUnselectCollections(
-      List<FincConfigMetadataCollection> collections, String isil) {
-    return collections.stream()
-        .filter(metadataCollection -> metadataCollection.getSelectedBy().remove(isil) == true)
-        .collect(Collectors.toList());
-  }
-
   private List<Future> saveCollections(List<FincConfigMetadataCollection> selected) {
     return selected.stream()
-        .map(metadataCollection -> saveSingleCollection(metadataCollection))
+        .map(this::saveSingleCollection)
         .collect(Collectors.toList());
   }
 

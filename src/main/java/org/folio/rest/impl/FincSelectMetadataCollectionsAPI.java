@@ -9,7 +9,6 @@ import io.vertx.core.Vertx;
 import java.util.Map;
 import javax.ws.rs.core.Response;
 import org.folio.finc.select.MetadataCollectionsHelper;
-import org.folio.finc.select.MetadataSourcesHelper;
 import org.folio.rest.jaxrs.model.FincSelectMetadataCollection;
 import org.folio.rest.jaxrs.model.FincSelectMetadataCollectionsGetOrder;
 import org.folio.rest.jaxrs.model.Select;
@@ -47,13 +46,12 @@ public class FincSelectMetadataCollectionsAPI implements FincSelectMetadataColle
       Context vertxContext) {
     // Posting metadata collections is not allowed via finc-select
     vertxContext.runOnContext(
-        aVoid -> {
-          asyncResultHandler.handle(
-              succeededFuture(
-                  FincSelectMetadataCollections.PostFincSelectMetadataCollectionsResponse.status(
-                          501)
-                      .build()));
-        });
+        aVoid ->
+            asyncResultHandler.handle(
+                succeededFuture(
+                    FincSelectMetadataCollections.PostFincSelectMetadataCollectionsResponse.status(
+                            501)
+                        .build())));
   }
 
   @Override
@@ -75,13 +73,12 @@ public class FincSelectMetadataCollectionsAPI implements FincSelectMetadataColle
       Handler<AsyncResult<Response>> asyncResultHandler,
       Context vertxContext) {
     vertxContext.runOnContext(
-        aVoid -> {
-          asyncResultHandler.handle(
-              succeededFuture(
-                  FincSelectMetadataCollections
-                      .DeleteFincSelectMetadataCollectionsSelectByIdResponse.status(501)
-                      .build()));
-        });
+        aVoid ->
+            asyncResultHandler.handle(
+                succeededFuture(
+                    FincSelectMetadataCollections
+                        .DeleteFincSelectMetadataCollectionsSelectByIdResponse.status(501)
+                        .build())));
   }
 
   @Override
@@ -93,13 +90,12 @@ public class FincSelectMetadataCollectionsAPI implements FincSelectMetadataColle
       Handler<AsyncResult<Response>> asyncResultHandler,
       Context vertxContext) {
     vertxContext.runOnContext(
-        aVoid -> {
-          asyncResultHandler.handle(
-              succeededFuture(
-                  FincSelectMetadataCollections.PutFincSelectMetadataCollectionsByIdResponse.status(
-                          501)
-                      .build()));
-        });
+        aVoid ->
+            asyncResultHandler.handle(
+                succeededFuture(
+                    FincSelectMetadataCollections.PutFincSelectMetadataCollectionsByIdResponse
+                        .status(501)
+                        .build())));
   }
 
   @Override
@@ -122,13 +118,12 @@ public class FincSelectMetadataCollectionsAPI implements FincSelectMetadataColle
       Handler<AsyncResult<Response>> asyncResultHandler,
       Context vertxContext) {
     vertxContext.runOnContext(
-        aVoid -> {
-          asyncResultHandler.handle(
-              succeededFuture(
-                  FincSelectMetadataCollections.GetFincSelectMetadataCollectionsSelectByIdResponse
-                      .status(501)
-                      .build()));
-        });
+        aVoid ->
+            asyncResultHandler.handle(
+                succeededFuture(
+                    FincSelectMetadataCollections.GetFincSelectMetadataCollectionsSelectByIdResponse
+                        .status(501)
+                        .build())));
   }
 
   @Override
@@ -139,12 +134,11 @@ public class FincSelectMetadataCollectionsAPI implements FincSelectMetadataColle
       Handler<AsyncResult<Response>> asyncResultHandler,
       Context vertxContext) {
     vertxContext.runOnContext(
-        aVoid -> {
-          asyncResultHandler.handle(
-              succeededFuture(
-                  FincSelectMetadataCollections
-                      .DeleteFincSelectMetadataCollectionsSelectByIdResponse.status(501)
-                      .build()));
-        });
+        aVoid ->
+            asyncResultHandler.handle(
+                succeededFuture(
+                    FincSelectMetadataCollections
+                        .DeleteFincSelectMetadataCollectionsSelectByIdResponse.status(501)
+                        .build())));
   }
 }
